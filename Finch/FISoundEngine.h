@@ -1,4 +1,7 @@
+#import <AVFoundation/AVFoundation.h>
+
 #import "FILogger.h"
+
 
 @interface FISoundEngine : NSObject
 
