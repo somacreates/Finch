@@ -1,6 +1,5 @@
 #import "FISound.h"
-#import "FISoundSample.h"
-#import "FIErrorReporter.h"
+#import "FISample.h"
 #import "FIError.h"
 
 #define CLEAR_ERROR_FLAG alGetError()
@@ -13,98 +12,112 @@
 @implementation FISound
 @synthesize loop, duration, gain, pitch, source, buffer;
 
+#pragma mark Initialization
+
+- (id) initWithSample: (FISample*) sample error: (NSError**) error
+{
+    self = [super init];
+    error = error ? error : &(NSError*){ nil };
+
+    if (!sample) {
+        return nil;
+    }
+
+    // Check the number of channels
+    if ([sample numberOfChannels] != 1 && [sample numberOfChannels] != 2) {
+        *error = [FIError
+            errorWithMessage:@"Invalid number of channels, only mono and stereo supported."
+            code:FIErrorInvalidNumberOfChannels];
+        return nil;
+    }
+
+    // Check sample resolution
+    if ([sample bitsPerChannel] != 8 && [sample bitsPerChannel] != 16) {
+        *error = [FIError
+            errorWithMessage:@"Invalid sample resolution, only 8-bit and 16-bit samples supported."
+            code:FIErrorInvalidSampleResolution];
+        return nil;
+    }
+
+    // Check data endianity
+    if (![sample hasNativeEndianity]) {
+        *error = [FIError
+            errorWithMessage:@"Wrong endianity in audio data."
+            code:FIErrorInvalidEndianity];
+        return nil;
+    }
+
+    // We need valid OpenAL context to continue
+    if (!alcGetCurrentContext()) {
+        *error = [FIError
+            errorWithMessage:@"OpenAL context not set, did you initialize Finch?"
+            code:FIErrorOpenALError];
+        return nil;
+    }
+
+    // Allocate OpenAL buffer
+    CLEAR_ERROR_FLAG;
+    alGenBuffers(1, &buffer);
+    if (alGetError()) {
+        *error = [FIError
+            errorWithMessage:@"Failed to allocate OpenAL buffer."
+            code:FIErrorOpenALError];
+        return nil;
+    }
+
+    // Pass sound data to OpenAL
+    CLEAR_ERROR_FLAG;
+    alBufferData(buffer, [sample openALFormat], [[sample data] bytes], [[sample data] length], [sample sampleRate]);
+    if (alGetError()) {
+        *error = [FIError
+            errorWithMessage:@"Failed to fill OpenAL buffers."
+            code:FIErrorOpenALError];
+        return nil;
+    }
+
+    // Initialize the OpenAL source
+    CLEAR_ERROR_FLAG;
+    alGenSources(1, &source);
+    alSourcei(source, AL_BUFFER, buffer);
+    if (alGetError()) {
+        *error = [FIError
+            errorWithMessage:@"Failed to create OpenAL source."
+            code:FIErrorOpenALError];
+        return nil;
+    }
+
+    gain = 1;
+    duration = [sample duration];
+    return self;
+}
+
 // Clears the error flag.
 - (BOOL) checkSuccessOrLog: (NSString*) msg
 {
     ALenum errcode;
-    if ((errcode = alGetError()) != AL_NO_ERROR)
-    {
+    if ((errcode = alGetError()) != AL_NO_ERROR) {
         NSLog(@"%@, error code %x.", msg, errcode);
         return NO;
     }
     return YES;
 }
 
-#pragma mark Designated Initializer
-
-- (id) initWithData: (const ALvoid*) data size: (ALsizei) size
-    format: (ALenum) format sampleRate: (ALsizei) frequency
-    duration: (float) seconds
-{
-    self = [super init];
-    
-    ALCcontext *const currentContext = alcGetCurrentContext();
-    if (currentContext == NULL)
-    {
-        NSLog(@"OpenAL context not set, did you initialize Finch?");
-        return nil;
-    }
-    
-    // Allocate buffer.
-    CLEAR_ERROR_FLAG;
-    alGenBuffers(1, &buffer);
-    if (![self checkSuccessOrLog:@"Failed to allocate OpenAL buffer"])
-        return nil;
-
-    // Pass sound data to OpenAL.
-    CLEAR_ERROR_FLAG;
-    alBufferData(buffer, format, data, size, frequency);
-    if (![self checkSuccessOrLog:@"Failed to fill OpenAL buffers"])
-        return nil;
-    
-    // Initialize the source.
-    CLEAR_ERROR_FLAG;
-    alGenSources(1, &source);
-    alSourcei(source, AL_BUFFER, buffer);
-    if (![self checkSuccessOrLog:@"Failed to create OpenAL source"])
-        return nil;
-
-    gain = 1;
-    duration = seconds;
-    return self;
-}
-
 - (void) dealloc
 {
     [self stop];
     CLEAR_ERROR_FLAG;
-    alSourcei(source, AL_BUFFER, DETACH_SOURCE);
-    alDeleteBuffers(1, &buffer), buffer = 0;
-    alDeleteSources(1, &source), source = 0;
+    if (source) {
+        alSourcei(source, AL_BUFFER, DETACH_SOURCE);
+    }
+    if (buffer) {
+        alDeleteBuffers(1, &buffer);
+        buffer = 0;
+    }
+    if (source) {
+        alDeleteSources(1, &source);
+        source = 0;
+    }
     [self checkSuccessOrLog:@"Failed to clean up after sound"];
-    [super dealloc];
-}
-
-- (id) initWithSample: (FISoundSample*) sample error: (NSError**) error
-{
-    if (!sample)
-        return nil;
-    
-    FIErrorReporter *reporter = [FIErrorReporter forDomain:@"Sound Initialization" error:error];
-    
-    // Check the number of channels
-    if (sample.channels != 1 && sample.channels != 2) {
-        *error = [reporter errorWithCode:FIErrorInvalidNumberOfChannels];
-        return nil;
-    }
-    
-    // Check sample resolution
-    if (sample.bitsPerChannel != 8 && sample.bitsPerChannel != 16) {
-        *error = [reporter errorWithCode:FIErrorInvalidSampleResolution];
-        return nil;
-    }
-    
-    // Check data endianity
-    if (sample.endianity != kLittleEndian) {
-        *error = [reporter errorWithCode:FIErrorInvalidEndianity];
-        return nil;
-    }
-    
-    const ALenum format = sample.channels == 1 ?
-        (sample.bitsPerChannel == 16 ? AL_FORMAT_MONO16 : AL_FORMAT_MONO8) :
-        (sample.bitsPerChannel == 16 ? AL_FORMAT_STEREO16 : AL_FORMAT_STEREO8);
-    return [self initWithData:sample.data.bytes size:sample.data.length
-        format:format sampleRate:sample.sampleRate duration:sample.duration];
 }
 
 #pragma mark Playback Controls

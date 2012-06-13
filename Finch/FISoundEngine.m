@@ -22,9 +22,6 @@
 - (void) dealloc
 {
     [self closeAudioDevice];
-    [logger release];
-    [audioSession release];
-    [super dealloc];
 }
 
 #pragma mark OpenAL Device Management
@@ -38,19 +35,19 @@
         logger(@"Could not open default OpenAL device.");
         return NO;
     }
-    
+
     context = alcCreateContext(device, 0);
     if (!context) {
         logger(@"Failed to create OpenAL context for default device.");
         return NO;
     }
-    
+
     const BOOL success = alcMakeContextCurrent(context);
     if (!success) {
         logger(@"Failed to set current OpenAL context.");
         return NO;
     }
-    
+
     [self setIsRunning:YES];
     return YES;
 }

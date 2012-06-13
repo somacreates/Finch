@@ -1,7 +1,8 @@
 #import "FIFactory.h"
+#import "FIError.h"
 
 @interface FIFactoryTests : SenTestCase
-@property(retain) FIFactory *factory;
+@property(strong) FIFactory *factory;
 @end
 
 @implementation FIFactoryTests
@@ -9,25 +10,27 @@
 
 - (void) testNonExistentSoundHandling
 {
-    FISound *soundA = nil, *soundB = nil;
+    FISound *sound = nil;
+    NSError *error = nil;
     STAssertNoThrow({
-        soundA = [factory loadSoundNamed:@"none_such"];
-        soundB = [factory loadSoundNamed:@"none_such" maxPolyphony:2];
+        sound = [factory loadSoundNamed:@"none_such" error:&error];
     },  @"Loading a non-existent sound does not throw.");
-    STAssertNil(soundA, @"Loading a non-existent sound returns nil.");
-    STAssertNil(soundB, @"Loading a non-existent revolver sound returns nil.");
+    STAssertNil(sound, @"Loading a non-existent sound returns nil.");
+    STAssertNotNil(error, @"Loading a non-existent sound sets the error object.");
+    STAssertEquals([error code], FIErrorFileReadFailed,
+        @"Loading a non-existent sound returns appropriate error code.");
 }
 
 - (void) setUp
 {
     [super setUp];
-    factory = [[FIFactory alloc] init];
+    [self setFactory:[[FIFactory alloc] init]];
     [factory setSoundBundle:[NSBundle bundleForClass:[self class]]];
 }
 
 - (void) tearDown
 {
-    [factory release];
+    [self setFactory:nil];
     [super tearDown];
 }
 

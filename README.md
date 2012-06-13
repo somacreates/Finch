@@ -21,7 +21,11 @@ of headers. This is a bit clumsy (see [another SO question][headers]), but in
 essence you can put Finch into a folder inside your project (say `Support`) and
 set the user header search path to this folder and below (`Support/**`).
 
+If you are unsure about the instructions above, please see the [Xcode 4 static
+libraries][tutorial] tutorial by Jonah Williams.
+
 [headers]: http://stackoverflow.com/questions/6289999
+[tutorial]: http://blog.carbonfive.com/2011/04/04/using-open-source-static-libraries-in-xcode-4/#using_a_static_library
 
 Using
 =====
@@ -42,8 +46,8 @@ The factory will give you the sound engine:
 
 And also the sounds:
 
-    FISound *soundA = [soundFactory loadSoundNamed:@"sitar.wav"];
-    FISound *soundB = [soundFactory loadSoundNamed:@"gun.wav" maxPolyphony:4];
+    FISound *soundA = [soundFactory loadSoundNamed:@"sitar.wav" error:NULL];
+    FISound *soundB = [soundFactory loadSoundNamed:@"gun.wav" maxPolyphony:4 error:NULL];
     [soundA play];
 
 Sound loaded without the `maxPolyphony` argument will only play with one
@@ -76,10 +80,6 @@ already included for your convenience and you can easily write your own.
 
 * You can use the sound classes independently on the sound engine class,
 for example if you already have some own OpenAL initialization code in place.
-
-* You can plug in your own decoder if you want to support some other audio
-formats, see the `FISoundDecoder` protocol and the `soundDecoders` property
-of the factory class.
 
 Links
 =====

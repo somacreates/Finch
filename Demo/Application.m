@@ -4,8 +4,8 @@
 #import "FIFactory.h"
 
 @interface Application ()
-@property(retain) FIFactory *soundFactory;
-@property(retain) FISoundEngine *soundEngine;
+@property(strong) FIFactory *soundFactory;
+@property(strong) FISoundEngine *soundEngine;
 @end
 
 @implementation Application
@@ -20,20 +20,11 @@
     [soundEngine activateAudioSessionWithCategory:AVAudioSessionCategoryPlayback];
     [soundEngine openAudioDevice];
 
-    [controller setSitarSound:[soundFactory loadSoundNamed:@"sitar.wav"]];
-    [controller setGunSound:[soundFactory loadSoundNamed:@"shot.wav" maxPolyphony:4]];
+    [controller setSitarSound:[soundFactory loadSoundNamed:@"sitar.wav" error:NULL]];
+    [controller setGunSound:[soundFactory loadSoundNamed:@"shot.wav" maxPolyphony:4 error:NULL]];
 
     [window setRootViewController:controller];
     [window makeKeyAndVisible];
-}
-
-- (void) dealloc
-{
-    [soundFactory release];
-    [soundEngine release];
-    [controller release];
-    [window release];
-    [super dealloc];
 }
 
 @end
